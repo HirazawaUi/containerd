@@ -19,15 +19,14 @@ package v2
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-
 	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/containerd/containerd/v2/pkg/identifiers"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/typeurl/v2"
 	"github.com/opencontainers/runtime-spec/specs-go"
+	"os"
+	"path/filepath"
 )
 
 // LoadBundle loads an existing bundle from disk
@@ -128,9 +127,11 @@ type Bundle struct {
 func (b *Bundle) Delete() error {
 	work, werr := os.Readlink(filepath.Join(b.Path, "work"))
 	rootfs := filepath.Join(b.Path, "rootfs")
+
 	if err := mount.UnmountRecursive(rootfs, 0); err != nil {
 		return fmt.Errorf("unmount rootfs %s: %w", rootfs, err)
 	}
+
 	if err := os.Remove(rootfs); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove bundle rootfs: %w", err)
 	}

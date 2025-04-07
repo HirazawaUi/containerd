@@ -90,7 +90,7 @@ func (c *criService) stopContainer(ctx context.Context, container containerstore
 	// stop only takes real action after the container is started.
 	state := container.Status.Get().State()
 	if state != runtime.ContainerState_CONTAINER_RUNNING &&
-		state != runtime.ContainerState_CONTAINER_UNKNOWN {
+		state != runtime.ContainerState_CONTAINER_UNKNOWN && state != runtime.ContainerState_CONTAINER_CREATED {
 		log.G(ctx).Infof("Container to stop %q must be in running or unknown state, current state %q",
 			id, criContainerStateToString(state))
 		return nil

@@ -20,17 +20,26 @@ package mount
 
 import (
 	"fmt"
-	"os"
-	"sort"
-	"time"
-
+	"github.com/containerd/log"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/sys/unix"
+	"os"
+	"os/exec"
+	"sort"
+	"time"
 )
 
 // UnmountRecursive unmounts the target and all mounts underneath, starting
 // with the deepest mount first.
 func UnmountRecursive(target string, flags int) error {
+	defer func() {
+		if r := recover(); r != nil {
+			// 将 panic 转换为 error 并记录日志
+			err := fmt.Errorf("panic occurred while unmounting %s: %v", target, r)
+			log.L.Errorf("recovered from panic: %v", err)
+		}
+	}()
+
 	if target == "" {
 		return nil
 	}
@@ -63,13 +72,32 @@ func UnmountRecursive(target string, flags int) error {
 		return len(targets[i]) > len(targets[j])
 	})
 
-	for i, target := range targets {
+	for _, target := range targets {
+		log.L.Infof("find unmounting target: %s", target)
 		if err := UnmountAll(target, flags); err != nil {
-			if i == len(targets)-1 { // last mount
-				return err
+			log.L.Errorf("failed to unmount '%s' (child of '%s'): %w, retry.....", target, targets[len(targets)-1], err)
+			if err := killProcessesBindingPath(target); err != nil {
+				return fmt.Errorf("failed to kill target process: %w", err)
 			}
+			if err := UnmountAll(target, flags); err != nil {
+				return fmt.Errorf("failed to unmount target: %w", err)
+			}
+			return nil
 		}
 	}
+	return nil
+}
+
+// killProcessesBindingPath 查找并杀死绑定到指定路径的所有进程
+func killProcessesBindingPath(path string) error {
+	cmd := exec.Command("fuser", "-k", "-m", path)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		return fmt.Errorf("failed to kill processes binding to %s: %s, %w", path, string(output), err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
 	return nil
 }
 
