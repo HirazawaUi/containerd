@@ -31,6 +31,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/containerd/containerd/v2/pkg/pullcontrol"
+
 	"github.com/containerd/errdefs"
 	"github.com/containerd/imgcrypt/v2"
 	"github.com/containerd/imgcrypt/v2/images/encryption"
@@ -100,7 +102,11 @@ import (
 // PullImage pulls an image with authentication config.
 func (c *GRPCCRIImageService) PullImage(ctx context.Context, r *runtime.PullImageRequest) (_ *runtime.PullImageResponse, err error) {
 
-	imageRef := r.GetImage().GetImage()
+	image := r.GetImage()
+	imageRef := image.GetImage()
+
+	// Pass annotations via context.
+	ctx = context.WithValue(ctx, "criAnnotationsKey", image.GetAnnotations())
 
 	credentials := func(host string) (string, string, error) {
 		hostauth := r.GetAuth()
@@ -121,6 +127,9 @@ func (c *GRPCCRIImageService) PullImage(ctx context.Context, r *runtime.PullImag
 }
 
 func (c *CRIImageService) PullImage(ctx context.Context, name string, credentials func(string) (string, string, error), sandboxConfig *runtime.PodSandboxConfig, runtimeHandler string) (_ string, err error) {
+	// Initialize the pull controller with the download limiter.
+	// This should ideally be done once when the CRI service is created.
+	pullcontrol.Init(c.downloadLimiter)
 	span := tracing.SpanFromContext(ctx)
 	defer func() {
 		// TODO: add domain label for imagePulls metrics, and we may need to provide a mechanism
@@ -159,6 +168,31 @@ func (c *CRIImageService) PullImage(ctx context.Context, name string, credential
 	if ref != name {
 		log.G(ctx).Debugf("PullImage using normalized image ref: %q", ref)
 	}
+
+	// Handle annotations for priority, pause, resume
+	annotations, _ := ctx.Value("criAnnotationsKey").(map[string]string)
+
+	if len(annotations) > 0 {
+		if pause, ok := annotations["pull.containerd.io/pause"]; ok {
+			if pause == "true" {
+				pullcontrol.GlobalController.Pause(ref)
+			} else {
+				pullcontrol.GlobalController.Resume(ref)
+			}
+		}
+
+		priorityVal := pullcontrol.Normal
+		if p, ok := annotations["pull-priority.containerd.io/class"]; ok {
+			switch p {
+			case "high":
+				priorityVal = pullcontrol.High
+			case "low":
+				priorityVal = pullcontrol.Low
+			}
+		}
+		ctx = context.WithValue(ctx, pullcontrol.PriorityKey, priorityVal)
+	}
+	ctx = context.WithValue(ctx, pullcontrol.ImageRefKey, ref)
 
 	imagePullProgressTimeout, err := time.ParseDuration(c.config.ImagePullProgressTimeout)
 	if err != nil {

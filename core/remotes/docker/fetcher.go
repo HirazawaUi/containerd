@@ -30,6 +30,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/containerd/containerd/v2/pkg/pullcontrol"
+
 	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
 	"github.com/klauspost/compress/zstd"
@@ -438,6 +440,11 @@ func (r dockerFetcher) FetchByDigest(ctx context.Context, dgst digest.Digest, op
 }
 
 func (r dockerFetcher) open(ctx context.Context, req *request, mediatype string, offset int64, lastHost bool) (_ io.ReadCloser, retErr error) {
+	release, err := pullcontrol.GlobalController.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	const minChunkSize = 512
 
 	chunkSize := int64(r.performances.ConcurrentLayerFetchBuffer)
@@ -456,9 +463,6 @@ func (r dockerFetcher) open(ctx context.Context, req *request, mediatype string,
 		req.setOffset(offset)
 	}
 
-	if err := r.Acquire(ctx, 1); err != nil {
-		return nil, err
-	}
 	resp, err := req.doWithRetries(ctx, lastHost, withErrorCheck, withOffsetCheck(offset))
 	switch err {
 	case nil:
@@ -470,13 +474,13 @@ func (r dockerFetcher) open(ctx context.Context, req *request, mediatype string,
 		}
 	default:
 		log.G(ctx).WithError(err).Debug("fetch failed")
-		r.Release(1)
+		release()
 		return nil, err
 	}
 
 	body := &fnOnClose{
 		BeforeClose: func() {
-			r.Release(1)
+			release()
 		},
 		ReadCloser: resp.Body,
 	}
@@ -539,10 +543,11 @@ func (r dockerFetcher) open(ctx context.Context, req *request, mediatype string,
 						if i == 0 {
 							body = ibody
 						} else {
-							if err := r.Acquire(ctx, 1); err != nil {
-								return err
-							}
-							defer r.Release(1)
+							release, err := pullcontrol.GlobalController.Acquire(ctx)
+								if err != nil {
+									return err
+								}
+								defer release()
 							reqClone := req.clone()
 							reqClone.setOffset(offset + i*chunkSize)
 							nresp, err := reqClone.doWithRetries(ctx, lastHost, withErrorCheck)
