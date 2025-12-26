@@ -36,6 +36,7 @@ import (
 	criconfig "github.com/containerd/containerd/v2/internal/cri/config"
 	containerstore "github.com/containerd/containerd/v2/internal/cri/store/container"
 	imagestore "github.com/containerd/containerd/v2/internal/cri/store/image"
+	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/containerd/errdefs"
 	"github.com/containerd/log"
 )
@@ -610,4 +611,44 @@ func sameMapping(a, b []runtimespec.LinuxIDMapping) bool {
 		}
 	}
 	return true
+}
+
+func toOCIUlimits(ulimits []*runtime.Ulimit) []runtimespec.POSIXRlimit {
+	var rlimits []runtimespec.POSIXRlimit
+	for _, u := range ulimits {
+		name := u.Name
+		if !strings.HasPrefix(name, "RLIMIT_") {
+			name = "RLIMIT_" + strings.ToUpper(name)
+		}
+
+		convert := func(v int64) uint64 {
+			if v == -1 {
+				// -1 means unlimited
+				return ^uint64(0)
+			}
+			if v < 0 {
+				// Invalid negative values should not be converted to large numbers.
+				// Cap to 0.
+				return 0
+			}
+			return uint64(v)
+		}
+
+		rlimits = append(rlimits, runtimespec.POSIXRlimit{
+			Type: name,
+			Hard: convert(u.Hard),
+			Soft: convert(u.Soft),
+		})
+	}
+	return rlimits
+}
+
+func withRlimits(rlimits []runtimespec.POSIXRlimit) oci.SpecOpts {
+	return func(ctx context.Context, client oci.Client, c *containers.Container, s *runtimespec.Spec) error {
+		if s.Process == nil {
+			s.Process = &runtimespec.Process{}
+		}
+		s.Process.Rlimits = rlimits
+		return nil
+	}
 }

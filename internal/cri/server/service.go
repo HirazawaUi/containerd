@@ -260,6 +260,7 @@ func NewCRIService(options *CRIServiceOptions) (CRIService, runtime.RuntimeServi
 
 	c.runtimeFeatures = &runtime.RuntimeFeatures{
 		SupplementalGroupsPolicy: true,
+		ContainerUlimits:         true,
 	}
 
 	if c.config.EnableCDI != nil && !*c.config.EnableCDI {

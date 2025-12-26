@@ -1,6 +1,6 @@
 module github.com/containerd/containerd/v2
 
-go 1.24.3
+go 1.25.0
 
 require (
 	dario.cat/mergo v1.0.2
@@ -31,7 +31,7 @@ require (
 	github.com/containernetworking/cni v1.3.0
 	github.com/containernetworking/plugins v1.9.0
 	github.com/coreos/go-systemd/v22 v22.6.0
-	github.com/davecgh/go-spew v1.1.1
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/distribution/reference v0.6.0
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c
 	github.com/docker/go-metrics v0.0.1
@@ -127,7 +127,7 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
@@ -159,3 +159,5 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 	tags.cncf.io/container-device-interface/specs-go v1.1.0 // indirect
 )
+
+replace k8s.io/cri-api v0.34.3 => github.com/HirazawaUi/cri-api v0.0.0-20251225153436-e282878e7819

@@ -768,6 +768,8 @@ func (c *criService) buildLinuxSpec(
 	specOpts = append(specOpts, oci.WithEnv(env))
 
 	securityContext := config.GetLinux().GetSecurityContext()
+	specOpts = append(specOpts, withRlimits(toOCIUlimits(securityContext.GetUlimits())))
+
 	labelOptions, err := toLabel(securityContext.GetSelinuxOptions())
 	if err != nil {
 		return nil, err
