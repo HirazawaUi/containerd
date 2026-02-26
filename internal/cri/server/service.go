@@ -264,7 +264,8 @@ func NewCRIService(options *CRIServiceOptions) (CRIService, runtime.RuntimeServi
 	}
 
 	c.runtimeFeatures = &runtime.RuntimeFeatures{
-		SupplementalGroupsPolicy: true,
+		SupplementalGroupsPolicy:  true,
+		UserNamespacesHostNetwork: true,
 	}
 
 	if c.config.EnableCDI != nil && !*c.config.EnableCDI {
